@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: docs-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: docs
+    ports:
+      - "5433:5432"      # different port so this can run alongside Project 1
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d docs"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docs-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/docs
+      APP_ENV: development
+      LLM_PROVIDER: mock
+      LOG_LEVEL: INFO
+      STORAGE_PATH: /app/storage/uploads
+    ports:
+      - "8001:8000"      # different port so this can run alongside Project 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    volumes:
+      - .:/app
+      - upload_data:/app/storage/uploads
+
+volumes:
+  postgres_data:
+  upload_data:
